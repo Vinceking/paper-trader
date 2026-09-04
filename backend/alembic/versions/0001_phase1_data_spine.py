@@ -76,13 +76,28 @@ def upgrade() -> None:
         "ix_bars_symbol_tf_ts_desc", "bars", ["symbol", "timeframe", sa.text("ts DESC")]
     )
 
-    # TimescaleDB hypertable — BUILD_SPEC §3, §5. Only meaningful against the
-    # timescale/timescaledb Postgres image in docker-compose.yml; skipped
-    # entirely on any other backend (e.g. SQLite in tests).
+    # TimescaleDB hypertable — BUILD_SPEC §3, §5. Only meaningful against a
+    # Postgres that actually has the extension available (the
+    # timescale/timescaledb image in docker-compose.yml does). Many managed
+    # Postgres targets — standard Supabase included — don't bundle it, so
+    # this checks rather than assumes: 'bars' still works as a plain table
+    # there, just without hypertable compression/chunking. Skipped entirely
+    # on non-Postgres backends (e.g. SQLite in tests).
     bind = op.get_bind()
     if bind.dialect.name == "postgresql":
-        op.execute("CREATE EXTENSION IF NOT EXISTS timescaledb")
-        op.execute("SELECT create_hypertable('bars', 'ts', if_not_exists => TRUE)")
+        has_timescale = bind.execute(
+            sa.text("select 1 from pg_available_extensions where name = 'timescaledb'")
+        ).scalar()
+        if has_timescale:
+            op.execute("CREATE EXTENSION IF NOT EXISTS timescaledb")
+            op.execute("SELECT create_hypertable('bars', 'ts', if_not_exists => TRUE)")
+        else:
+            print(
+                "NOTE: timescaledb extension not available on this Postgres "
+                "(expected on standard Supabase) -- 'bars' stays a plain table. "
+                "Correctness is unaffected; only large-history query/compression "
+                "performance is."
+            )
 
     op.create_table(
         "ingest_state",
