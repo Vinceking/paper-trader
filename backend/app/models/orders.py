@@ -1,11 +1,4 @@
-"""Order and fill tables. BUILD_SPEC §5, §7.5, §9.
-
-`orders.signal_id` and the strategy/signal linkage on positions/trades are
-deferred to Phase 3, when the `signals` and `strategies` tables exist — Phase 2
-only produces manual orders (`source = 'manual'`), so there is nothing to link
-yet. Adding a column that references a table that doesn't exist would be a
-half-wired migration; Phase 3 adds it properly alongside the strategy engine.
-"""
+"""Order and fill tables. BUILD_SPEC §5, §7.5, §9."""
 
 from __future__ import annotations
 
@@ -26,6 +19,12 @@ class Order(Base):
     account_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("paper_accounts.id"), nullable=False
     )
+    # Null for manual orders. Phase 3 adds the signals table this references
+    # but doesn't populate it — auto-executing a strategy signal (risk engine
+    # -> broker) is a later integration, not part of Phase 3's own scope.
+    signal_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("signals.id")
+    )
     symbol: Mapped[str] = mapped_column(String(16), nullable=False)
     side: Mapped[str] = mapped_column(String(4), nullable=False)  # 'buy' | 'sell'
     qty: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
@@ -34,7 +33,7 @@ class Order(Base):
     stop_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
     # 'pending' | 'filled' | 'partial' | 'cancelled' | 'rejected'
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
-    # 'strategy' | 'manual' — only 'manual' is produced until Phase 3.
+    # 'strategy' | 'manual' — only 'manual' is produced through Phase 3.
     source: Mapped[str] = mapped_column(String(16), nullable=False)
     submitted_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

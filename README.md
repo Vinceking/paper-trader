@@ -16,17 +16,18 @@ engine, and a post-trade education layer that explains every decision.
 
 ## Status
 
-**Phase 1 (data spine) and Phase 2 (execution + risk) — scaffolded and passing.**
-The full suite runs with no live database, no network, and no API keys — DB-backed
-tests use an in-memory SQLite database instead of Postgres/Docker.
+**Phase 1 (data spine), Phase 2 (execution + risk), and Phase 3 (strategy engine)
+— scaffolded and passing.** The full suite runs with no live database, no network,
+and no API keys — DB-backed tests use an in-memory SQLite database instead of
+Postgres/Docker.
 
 ```
 backend/app/config.py              paper-only safety rails, refuses to boot otherwise
 backend/app/models/                SQLAlchemy: users, paper_accounts, bars, ingest_state,
                                     gap_events, orders, fills, positions, trades,
-                                    risk_settings, risk_events
+                                    risk_settings, risk_events, strategies, signals
 backend/app/db.py, deps.py         async engine/session, shared FastAPI dependencies
-backend/alembic/                   migrations: 0001 (Phase 1 tables), 0002 (Phase 2 tables)
+backend/alembic/                   migrations: 0001 (Phase 1), 0002 (Phase 2), 0003 (Phase 3)
 backend/app/ingest/bars.py         bar construction, finalization, gap detection
 backend/app/ingest/subscriptions.py 30-symbol free-tier subscription manager
 backend/app/ingest/stream.py       reconnect + full-jitter backoff + heartbeat watchdog
@@ -42,9 +43,21 @@ backend/app/execution/order_service.py manual-order orchestration: risk -> broke
 backend/app/risk/sizing.py         fixed-fractional position sizing
 backend/app/risk/engine.py         the risk engine: every veto from §7.4
 backend/app/market_calendar.py     shared session-boundary helpers (calendar-naive)
+backend/app/strategies/base.py     Signal/Condition/BarContext, the Strategy ABC (§8.1-8.2)
+backend/app/strategies/indicators.py the indicator pipeline (§8.4): EMA/SMA/RSI/MACD/ATR/
+                                    Bollinger/ADX via pandas-ta-classic, plus hand-rolled
+                                    session VWAP+bands, opening range, gap, regime
+backend/app/strategies/engine.py   bar-finalization gating (SymbolEngine), strategy dispatch
+backend/app/strategies/signal_service.py signal persistence — written before any order
+backend/app/strategies/orb.py      Opening Range Breakout
+backend/app/strategies/vwap_reversion.py VWAP Mean Reversion
+backend/app/strategies/ema_cross.py EMA Crossover with daily regime filter
+backend/app/strategies/rsi2.py     RSI(2) Mean Reversion (Larry Connors)
+backend/app/strategies/registry.py slug -> Strategy class lookup
 backend/app/api/                   FastAPI: /health, /market/*, POST /orders
-backend/tests/                     104 tests incl. hypothesis property tests and a full
-                                    POST /orders integration test against SQLite
+backend/tests/                     193 tests incl. hypothesis property tests, a full
+                                    POST /orders integration test against SQLite, and the
+                                    no-lookahead property test for the strategy engine
 backend/tools/smoke_replay.py      end-to-end offline pipeline proof
 backend/tools/record_day.py        record a real session for replay
 ```
@@ -52,13 +65,31 @@ backend/tools/record_day.py        record a real session for replay
 **Known Phase 2 scope decisions** (see code comments for the full reasoning):
 - `paper_accounts.cash`/`equity` are not yet mutated by trades — the daily-loss
   veto derives realized P&L directly from `trades` rows instead. Live
-  mark-to-market equity needs the indicator/quote pipeline, which is Phase 3.
+  mark-to-market equity needs the indicator/quote pipeline built in Phase 3, but
+  wiring it into account bookkeeping is still a later step.
 - The manual order endpoint takes its reference quote (bid/ask/ATR/typical
-  volume) from the request body rather than a live source, since Phase 1 never
-  wired ingest through to Postgres/Redis. A live snapshot provider arrives with
-  Phase 3.
+  volume) from the request body rather than a live source, since ingest still
+  isn't wired through to Postgres/Redis (§7.1's Redis quote cache is unbuilt).
 - `Position.entry_order_id` was added to the schema (not in BUILD_SPEC §5) so a
   closed trade's `total_friction` can include the entry leg's friction.
+
+**Known Phase 3 scope decisions:**
+- Strategies emit and persist `Signal`s (`persist_signal`), but nothing yet
+  auto-executes a strategy signal into a real order — the risk-engine-then-broker
+  wiring Phase 2 built is manual-order-only so far. `orders.signal_id` and the
+  `strategy_id`/`entry_signal_id`/`exit_signal_id` columns on `positions`/`trades`
+  exist (completing BUILD_SPEC §5's schema, as promised in Phase 2's comments) but
+  are always null for now.
+- ORB's volume filter uses `relative_volume_20` (current bar vs. its own rolling
+  20-bar average) rather than BUILD_SPEC §8.3's literal "20-day average for that
+  time of day" — the latter needs a per-minute-of-day volume profile across many
+  daily sessions that nothing in this codebase builds yet.
+- RSI(2) has no price-based stop in BUILD_SPEC §8.3's own description; one was
+  added (`entry - 1.5*ATR(14)`, matching the other three strategies) because
+  CLAUDE.md rule 6 requires every entry to define one, with no exceptions.
+- EMA crossover's stop ("swing low or 2×ATR" — BUILD_SPEC doesn't say which wins)
+  uses whichever is wider/further from entry, so it never ends up unrealistically
+  tight.
 
 ## Quick start
 
@@ -98,9 +129,8 @@ Do not scaffold all phases at once — understanding the result is the point.
 | `ingest` | **exactly one** | The Alpaca data socket and bar building. A second instance duplicates the connection and races. |
 | `worker` | many | Strategy evaluation, execution, explanations, scheduled jobs. |
 
-## Next up — Phase 3
+## Next up — Phase 4
 
-Strategy engine: `Strategy` ABC, indicator pipeline (EMA/SMA/RSI/MACD/ATR/VWAP/etc.,
-computed once per symbol per bar), all four starter strategies (ORB, VWAP reversion,
-EMA crossover, RSI(2)), signal + evidence persistence (the `signals` table), and
-bar-finalization gating so strategies only ever evaluate finalized bars.
+Backtest + gate: VectorBT sweep runner, Backtrader verification, walk-forward split,
+gate report, enable/disable enforcement (`strategies.enabled` cannot be set true
+unless `gate_passed` is true — return 409 otherwise, per BUILD_SPEC §8.5).
