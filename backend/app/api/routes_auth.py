@@ -16,11 +16,23 @@ from sqlalchemy import select
 from app.auth.security import create_access_token, hash_password, verify_password
 from app.deps import DbSession
 from app.models.account import PaperAccount, User
+from app.models.strategies import StrategyRecord
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
+from app.strategies.registry import STRATEGIES
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 _STARTING_CASH = Decimal("100000.00")
+
+# Human-readable labels for the one auto-created StrategyRecord per known
+# slug every new user gets (see below) -- STRATEGIES itself only maps a slug
+# to its class, with no display-name attribute of its own.
+_STRATEGY_LABELS: dict[str, str] = {
+    "orb": "Opening Range Breakout",
+    "vwap_reversion": "VWAP Reversion",
+    "ema_cross": "EMA Crossover",
+    "rsi2": "RSI(2) Mean Reversion",
+}
 
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
@@ -47,6 +59,23 @@ async def register(body: RegisterRequest, db: DbSession) -> TokenResponse:
         equity=_STARTING_CASH,
     )
     db.add(account)
+
+    # One StrategyRecord per known slug, disabled by default -- this is what
+    # gives the new account something for the live ingest pipeline
+    # (app/ingest/pipeline.py) to actually evaluate against real bars, so
+    # GET /signals has recommendations to show once the market's open,
+    # without the user needing to call POST /strategies by hand first.
+    # `enabled=False`/`gate_passed=False`: recording a signal never requires
+    # either (see SignalRecord's own design) -- only auto-*placing an order*
+    # would, and nothing in this codebase does that yet regardless.
+    for slug in STRATEGIES:
+        db.add(StrategyRecord(
+            user_id=user.id,
+            slug=slug,
+            name=_STRATEGY_LABELS.get(slug, slug),
+            params={},
+        ))
+
     await db.commit()
 
     token = create_access_token(user_id=user.id, role=user.role)

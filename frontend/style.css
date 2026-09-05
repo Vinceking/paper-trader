@@ -246,6 +246,36 @@ h2 { font-size: 18px; }
 .pnl-positive { color: var(--green); font-weight: 700; }
 .pnl-negative { color: var(--red); font-weight: 700; }
 
+/* ---------- recommendations / signals ---------- */
+.signal-reason {
+  font-size: 14px;
+  color: var(--text);
+  margin: 4px 0 8px;
+}
+.cond-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cond-chip {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+.cond-pass {
+  color: var(--green);
+  background: #eafaf0;
+  border-color: #b9e3c6;
+}
+.cond-fail {
+  color: var(--red);
+  background: #fdeceb;
+  border-color: #f3b9b3;
+}
+
 .position-pick-btn {
   width: 100%;
   text-align: left;

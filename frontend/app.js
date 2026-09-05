@@ -15,6 +15,7 @@
     token: localStorage.getItem(TOKEN_KEY) || null,
     account: null, // { id, name, cash, equity, starting_cash, benchmark_symbol }
     positions: [], // last fetched open positions
+    signals: [], // last fetched recommendations (GET /signals)
     authMode: "login", // "login" | "register"
     entryQuote: null, // { symbol, bid, ask, atr_14, typical_bar_volume }
     exitSymbol: null,
@@ -40,6 +41,18 @@
     try {
       const d = new Date(iso);
       return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    } catch {
+      return iso;
+    }
+  }
+
+  function fmtDateTime(iso) {
+    if (!iso) return "—";
+    try {
+      const d = new Date(iso);
+      return d.toLocaleString(undefined, {
+        month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+      });
     } catch {
       return iso;
     }
@@ -200,14 +213,17 @@
 
   async function loadDashboard() {
     try {
-      const [account, positions, trades] = await Promise.all([
+      const [account, positions, trades, signals] = await Promise.all([
         api("/account"),
         api("/account/positions"),
         api("/account/trades?limit=20"),
+        api("/signals?limit=20"),
       ]);
       state.account = account;
       state.positions = positions;
+      state.signals = signals;
       renderAccount(account);
+      renderSignals(signals);
       renderPositions(positions);
       renderTrades(trades);
     } catch (err) {
@@ -276,6 +292,32 @@
         <div class="list-item-row"><span>R-multiple</span><span>${t.r_multiple != null ? t.r_multiple.toFixed(2) + "R" : "—"}</span></div>
         <div class="list-item-row"><span>Exit reason</span><span>${escapeHtml(t.exit_reason || "—")}</span></div>
         <div class="list-item-row"><span>Closed</span><span>${fmtDate(t.closed_at)}</span></div>
+      `;
+      list.appendChild(div);
+    });
+  }
+
+  function renderSignals(signals) {
+    const list = $("signals-list");
+    list.innerHTML = "";
+    if (!signals || signals.length === 0) {
+      list.innerHTML = '<div class="list-empty">No signals yet — strategies evaluate live market data, so nothing shows here until the market\'s open and a rule actually fires.</div>';
+      return;
+    }
+    signals.forEach((s) => {
+      const div = document.createElement("div");
+      div.className = "list-item";
+      const actionLabel = `${s.side === "buy" ? "BUY" : "SELL"} · ${s.intent === "entry" ? "Entry" : "Exit"}`;
+      const conditionsHtml = (s.conditions || []).map((c) => `
+        <span class="cond-chip ${c.passed ? "cond-pass" : "cond-fail"}">
+          ${c.passed ? "✓" : "✗"} ${escapeHtml(c.description || c.name)}
+        </span>
+      `).join("");
+      div.innerHTML = `
+        <div class="list-item-top"><span>${escapeHtml(s.symbol)} · ${escapeHtml(actionLabel)}</span><span>${fmtDateTime(s.ts)}</span></div>
+        <div class="list-item-row"><span>${escapeHtml(s.strategy_name)}</span></div>
+        <p class="signal-reason">${escapeHtml(s.rule_text)}</p>
+        <div class="cond-chips">${conditionsHtml}</div>
       `;
       list.appendChild(div);
     });

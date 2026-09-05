@@ -116,6 +116,12 @@ class TestCreateAndList:
 
     def test_create_and_list_round_trip(self, harness):
         headers = _auth_headers(harness.client)
+        # Every new registration auto-seeds one disabled StrategyRecord per
+        # known slug (see app/api/routes_auth.py) so the live ingest
+        # pipeline has something to evaluate right away -- baseline before
+        # this test's own POST, not assumed to be zero.
+        baseline = harness.client.get("/strategies", headers=headers).json()
+
         resp = harness.client.post(
             "/strategies", headers=headers,
             json={"slug": "rsi2", "name": "My RSI2", "params": {}},
@@ -127,8 +133,8 @@ class TestCreateAndList:
         assert body["gate_passed"] is False
 
         listed = harness.client.get("/strategies", headers=headers).json()
-        assert len(listed) == 1
-        assert listed[0]["id"] == body["id"]
+        assert len(listed) == len(baseline) + 1
+        assert body["id"] in {s["id"] for s in listed}
 
     def test_strategies_are_scoped_per_user(self, harness):
         headers_a = _auth_headers(harness.client, "a@example.com")
@@ -137,7 +143,11 @@ class TestCreateAndList:
             "/strategies", headers=headers_a,
             json={"slug": "rsi2", "name": "Alice's", "params": {}},
         )
-        assert harness.client.get("/strategies", headers=headers_b).json() == []
+        # B never sees Alice's strategy -- only B's own auto-seeded defaults
+        # from registration (see app/api/routes_auth.py), never a row
+        # belonging to another user.
+        b_strategies = harness.client.get("/strategies", headers=headers_b).json()
+        assert all(s["name"] != "Alice's" for s in b_strategies)
 
 
 class TestPatchEnableGate:
@@ -227,7 +237,8 @@ class TestBacktestAndGateEndpoints:
         # not asserted as True/False here since it's a genuine, un-rigged
         # outcome on tiny synthetic data (see CLAUDE.md's anti-fabrication
         # rule -- this test does not force a particular result).
-        strategy_after = harness.client.get("/strategies", headers=headers).json()[0]
+        listed_after = harness.client.get("/strategies", headers=headers).json()
+        strategy_after = next(s for s in listed_after if s["id"] == created["id"])
         assert strategy_after["gate_passed"] == report["gate_passed"]
         assert strategy_after["gate_report_id"] == report["id"]
 
