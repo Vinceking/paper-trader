@@ -2,7 +2,14 @@
 name = "paper-trader"
 version = "0.1.0"
 description = "Simulated day-trading platform with a live data feed and a post-trade education layer"
-requires-python = ">=3.11"
+
+# Upper-bounded deliberately: Vercel's build (uv lock) resolves dependencies
+# across every Python version the range implies, including hypothetical
+# future ones. An open-ended ">=3.11" made it try to solve for Python 3.14
+# on win32, where pandas-ta-classic>=1.0 has no wheel yet, and fail the
+# build outright -- even though we only ever run on 3.12 (see .python-version
+# / the actual runtime everywhere this deploys).
+requires-python = ">=3.11,<3.13"
 
 dependencies = [
     "fastapi>=0.115",
