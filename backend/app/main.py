@@ -14,7 +14,14 @@ import structlog
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from app.api import routes_account, routes_auth, routes_health, routes_market, routes_orders
+from app.api import (
+    routes_account,
+    routes_auth,
+    routes_health,
+    routes_market,
+    routes_orders,
+    routes_strategies,
+)
 from app.config import get_settings
 
 # Resolved relative to this file, not the process's working directory — robust
@@ -59,6 +66,7 @@ def create_app() -> FastAPI:
     app.include_router(routes_orders.router)
     app.include_router(routes_auth.router)
     app.include_router(routes_account.router)
+    app.include_router(routes_strategies.router)
 
     # Mounted LAST and at "/" so it only ever catches paths none of the API
     # routers above matched — the stopgap frontend (see ../static), served
