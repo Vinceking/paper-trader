@@ -32,18 +32,6 @@ dependencies = [
     # instead of truncating) — pin to a version passlib actually supports.
     "bcrypt>=3.2,<4.1",
     "structlog>=24.4",
-    # Phase 4 backtest gate (BUILD_SPEC §8.5): VectorBT for the fast
-    # parameter sweep, Backtrader available for event-driven re-verification
-    # (see app/backtest/verify.py's docstring for why that stage actually
-    # reuses app/backtest/runner.py instead of wiring backtrader in).
-    "vectorbt>=0.26",
-    "backtrader>=1.9.78",
-    # vectorbt>=1.0's import-time theme setup breaks on current plotly
-    # (removed `scattermapbox` in favor of `scattermap`) -- pinned to the
-    # last version that still has it. Not one of Phase 4's "two new
-    # dependencies" on its own; required for vectorbt to import at all in
-    # this environment. See the Phase 4 task summary.
-    "plotly==5.24.1",
 ]
 
 [project.optional-dependencies]
@@ -56,6 +44,27 @@ dev = [
     # async SQLite backs the test DB so integration tests don't need a real
     # Postgres/Docker instance running.
     "aiosqlite>=0.20",
+]
+# Phase 4 backtest gate (BUILD_SPEC §8.5): VectorBT for the fast parameter
+# sweep, Backtrader kept available for event-driven re-verification (see
+# app/backtest/verify.py's docstring for why that stage actually reuses
+# app/backtest/runner.py instead of wiring backtrader in). Kept OUT of the
+# base `dependencies` and imported lazily inside app/backtest/sweep.py
+# (not at module scope) because vectorbt's numba/llvmlite/plotly chain
+# alone pushed the deployed Vercel function past its 500 MB hard size cap
+# (666 MB measured) -- the live-trading API doesn't need these to boot;
+# only `POST /strategies/{id}/backtest` does, and that endpoint is run
+# from a machine with this extra installed (see the Phase 4 task summary
+# and the deployment-fix notes), not from the public serverless deployment.
+backtest = [
+    "vectorbt>=0.26",
+    "backtrader>=1.9.78",
+    # vectorbt>=1.0's import-time theme setup breaks on current plotly
+    # (removed `scattermapbox` in favor of `scattermap`) -- pinned to the
+    # last version that still has it. Not one of Phase 4's "two new
+    # dependencies" on its own; required for vectorbt to import at all in
+    # this environment. See the Phase 4 task summary.
+    "plotly==5.24.1",
 ]
 
 [tool.pytest.ini_options]

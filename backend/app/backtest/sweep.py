@@ -40,7 +40,6 @@ from typing import Protocol
 
 import pandas as pd
 import pandas_ta_classic as ta
-import vectorbt as vbt
 
 from app.ingest.bars import FinalBar
 from app.market_calendar import start_of_trading_day
@@ -195,7 +194,18 @@ def run_sweep(
     combo with the highest in-sample total return alongside every combo's
     result (BUILD_SPEC §8.5 rule 5: report the distribution, not just the
     winner).
+
+    Imports `vectorbt` lazily, on the first actual sweep call, rather than
+    at module scope -- `vectorbt` (with its numba/llvmlite/plotly
+    dependency chain) is a real, unremoved dependency of this feature, but
+    its bundle size is too large for Vercel's serverless function to carry
+    alongside the live-trading API (see pyproject.toml's `backtest` extras
+    group). Importing it lazily means the rest of the app -- every route
+    that isn't the backtest gate -- still boots and runs without it
+    installed.
     """
+    import vectorbt as vbt
+
     if slug not in _SIGNAL_FNS:
         raise ValueError(f"no vectorized sweep proxy for strategy slug {slug!r}")
     if not bars:
