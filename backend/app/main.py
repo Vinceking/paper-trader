@@ -20,6 +20,7 @@ from app.api import (
     routes_health,
     routes_market,
     routes_orders,
+    routes_signals,
     routes_strategies,
 )
 from app.config import get_settings
@@ -67,6 +68,7 @@ def create_app() -> FastAPI:
     app.include_router(routes_auth.router)
     app.include_router(routes_account.router)
     app.include_router(routes_strategies.router)
+    app.include_router(routes_signals.router)
 
     # Mounted LAST and at "/" so it only ever catches paths none of the API
     # routers above matched — the stopgap frontend (see ../static), served
