@@ -64,3 +64,11 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["app*"]
+
+# uv's `uv lock` does a universal, multi-platform resolution by default --
+# including sys_platform == 'win32', where pandas-ta-classic>=1.0 ships no
+# wheel at all (only sdists that don't build there either). We only ever
+# deploy to Linux (Vercel) and develop locally on Windows via pip, not uv,
+# so restrict uv's resolution to the one platform it actually needs to solve.
+[tool.uv]
+environments = ["sys_platform == 'linux'"]
