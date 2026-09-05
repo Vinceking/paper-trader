@@ -1,0 +1,180 @@
+<!--
+  STOPGAP FRONTEND — read this before you touch anything.
+
+  BUILD_SPEC.md Phase 6 calls for React + Vite + TypeScript. This is NOT that.
+  This is a deliberate, same-day deviation: plain static HTML/CSS/vanilla JS,
+  zero build step, zero npm, zero framework. It exists so three family members
+  can log in and place paper trades tonight from their phones, and so nothing
+  about a build pipeline can break between now and then.
+
+  When there's time to do it properly, THIS FILE SHOULD BE REPLACED by the
+  real Phase 6 React+Vite+TS build per BUILD_SPEC. Don't mistake this for
+  the final frontend.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Paper Trading</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header class="topbar">
+    <span class="brand">Paper Trading</span>
+    <span class="paper-badge">Paper Trading — no real money</span>
+    <button id="btn-logout" class="btn-link hidden" type="button">Log out</button>
+  </header>
+
+  <main id="app">
+
+    <!-- ================= AUTH VIEW ================= -->
+    <section id="view-auth" class="view">
+      <div class="card auth-card">
+        <h1 id="auth-title">Log in</h1>
+        <p class="paper-note">This account only trades simulated money. No real orders are ever placed.</p>
+
+        <form id="form-auth" novalidate>
+          <label class="field">
+            <span>Display name</span>
+            <input id="input-name" type="text" autocomplete="name" placeholder="Kai" />
+          </label>
+
+          <label class="field">
+            <span>Email</span>
+            <input id="input-email" type="email" autocomplete="email" required placeholder="you@example.com" />
+          </label>
+
+          <label class="field">
+            <span>Password</span>
+            <input id="input-password" type="password" autocomplete="current-password" required placeholder="••••••••" />
+          </label>
+
+          <div id="auth-error" class="error-box hidden" role="alert"></div>
+
+          <button id="btn-auth-submit" class="btn btn-primary btn-block" type="submit">Log in</button>
+        </form>
+
+        <button id="btn-auth-toggle" class="btn-link btn-block" type="button">
+          Need an account? Create one
+        </button>
+      </div>
+    </section>
+
+    <!-- ================= DASHBOARD VIEW ================= -->
+    <section id="view-dashboard" class="view hidden">
+
+      <div class="card">
+        <h2>Account</h2>
+        <div id="account-summary" class="summary-grid">
+          <div class="summary-item">
+            <span class="summary-label">Equity</span>
+            <span class="summary-value" id="acct-equity">—</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Cash</span>
+            <span class="summary-value" id="acct-cash">—</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Starting cash</span>
+            <span class="summary-value" id="acct-starting">—</span>
+          </div>
+        </div>
+      </div>
+
+      <button id="btn-open-order" class="btn btn-primary btn-block btn-big" type="button">
+        Place a trade
+      </button>
+
+      <div class="card">
+        <h2>Open positions</h2>
+        <div id="positions-list" class="list"></div>
+      </div>
+
+      <div class="card">
+        <h2>Recent trades</h2>
+        <div id="trades-list" class="list"></div>
+      </div>
+
+    </section>
+
+    <!-- ================= ORDER VIEW ================= -->
+    <section id="view-order" class="view hidden">
+      <div class="card">
+        <button id="btn-order-back" class="btn-link" type="button">&larr; Back to dashboard</button>
+        <h2>Place a trade</h2>
+
+        <div class="tabs">
+          <button id="tab-entry" class="tab-btn tab-active" type="button">New entry</button>
+          <button id="tab-exit" class="tab-btn" type="button">Close a position</button>
+        </div>
+
+        <!-- ---- New entry form ---- -->
+        <div id="panel-entry" class="tab-panel">
+          <label class="field">
+            <span>Symbol</span>
+            <input id="entry-symbol" type="text" placeholder="AAPL" autocapitalize="characters" />
+          </label>
+
+          <button id="btn-entry-quote" class="btn btn-secondary btn-block" type="button">Get live price</button>
+
+          <div id="entry-quote-box" class="quote-box hidden"></div>
+          <div id="entry-quote-error" class="error-box hidden" role="alert"></div>
+
+          <div id="entry-fields" class="hidden">
+            <label class="field">
+              <span>Stop price</span>
+              <input id="entry-stop" type="number" step="0.01" inputmode="decimal" placeholder="0.00" />
+            </label>
+            <p class="hint">Every trade needs a stop-loss so risk is capped before you enter.</p>
+
+            <label class="field">
+              <span>Target price <em>(optional)</em></span>
+              <input id="entry-target" type="number" step="0.01" inputmode="decimal" placeholder="0.00" />
+            </label>
+
+            <div class="hold-wrap">
+              <p class="hold-label">Press and hold for 3 seconds to submit</p>
+              <button id="hold-entry" class="hold-btn" type="button">
+                <span class="hold-fill"></span>
+                <span class="hold-text">Hold to Buy</span>
+              </button>
+            </div>
+          </div>
+
+          <div id="entry-result" class="result-box hidden"></div>
+        </div>
+
+        <!-- ---- Close position form ---- -->
+        <div id="panel-exit" class="tab-panel hidden">
+          <p class="hint">Choose an open position to close.</p>
+          <div id="exit-position-list" class="list"></div>
+
+          <div id="exit-fields" class="hidden">
+            <p class="exit-symbol-label">Closing <strong id="exit-symbol-name"></strong></p>
+            <button id="btn-exit-quote" class="btn btn-secondary btn-block" type="button">Get live price</button>
+
+            <div id="exit-quote-box" class="quote-box hidden"></div>
+            <div id="exit-quote-error" class="error-box hidden" role="alert"></div>
+
+            <div id="exit-hold-wrap" class="hold-wrap hidden">
+              <p class="hold-label">Press and hold for 3 seconds to close</p>
+              <button id="hold-exit" class="hold-btn hold-btn-danger" type="button">
+                <span class="hold-fill"></span>
+                <span class="hold-text">Hold to Close</span>
+              </button>
+            </div>
+          </div>
+
+          <div id="exit-result" class="result-box hidden"></div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <script src="app.js" defer></script>
+</body>
+</html>

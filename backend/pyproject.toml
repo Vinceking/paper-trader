@@ -20,6 +20,10 @@ dependencies = [
     "httpx>=0.27",
     "python-jose[cryptography]>=3.3",
     "passlib[bcrypt]>=1.7",
+    # passlib 1.7.4's bcrypt backend self-test breaks on bcrypt>=4.1 (removed
+    # `bcrypt.__about__`, and its internal >72-byte self-test now raises
+    # instead of truncating) — pin to a version passlib actually supports.
+    "bcrypt>=3.2,<4.1",
     "structlog>=24.4",
 ]
 

@@ -8,12 +8,19 @@ horizontally-scaled API server duplicates the connection and races on bar buildi
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import structlog
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
-from app.api import routes_health, routes_market, routes_orders
+from app.api import routes_account, routes_auth, routes_health, routes_market, routes_orders
 from app.config import get_settings
+
+# Resolved relative to this file, not the process's working directory — robust
+# whether run locally (`uvicorn app.main:app`) or bundled by Vercel, where the
+# working directory convention differs (see Vercel's Python runtime docs).
+_STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 log = structlog.get_logger(__name__)
 
@@ -50,6 +57,17 @@ def create_app() -> FastAPI:
     app.include_router(routes_health.router)
     app.include_router(routes_market.router)
     app.include_router(routes_orders.router)
+    app.include_router(routes_auth.router)
+    app.include_router(routes_account.router)
+
+    # Mounted LAST and at "/" so it only ever catches paths none of the API
+    # routers above matched — the stopgap frontend (see ../static), served
+    # same-origin so the frontend's relative fetch() calls need no CORS
+    # config. `html=True` serves static/index.html for "/" and any
+    # unmatched sub-path, which is what a client-side-routed SPA needs.
+    if _STATIC_DIR.is_dir():
+        app.mount("/", StaticFiles(directory=str(_STATIC_DIR), html=True), name="static")
+
     return app
 
 
