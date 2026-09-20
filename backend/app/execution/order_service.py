@@ -38,9 +38,13 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
+import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
+from app.education.explainer import generate_explanation_for_trade
+from app.education.llm import get_llm_provider
 from app.execution.broker import OrderRequest
 from app.execution.friction import FrictionConfig, mid_price
 from app.execution.paper_broker import AlpacaTradingClient, MarketSnapshot, PaperBroker
@@ -51,6 +55,8 @@ from app.models.orders import Fill, Order
 from app.models.positions import Position, Trade
 from app.models.risk import RiskEvent, RiskSettings
 from app.risk.engine import AccountState, RiskDecision, RiskEngine, RiskSettingsInput, RiskSignal
+
+log = structlog.get_logger(__name__)
 
 # Mirrors the risk_settings table's own column defaults (BUILD_SPEC §5), used
 # when an account has no risk_settings row yet.
@@ -344,5 +350,19 @@ async def submit_manual_order(
         position_to_close.status = "closed"
 
     await db.commit()
+
+    if trade_row is not None:
+        # Phase 5 (BUILD_SPEC §11): generate + persist the education-layer
+        # explanation right after the trade's own commit succeeds. §11.2
+        # says "generate async in the worker" -- no worker process exists in
+        # this codebase tonight (see app/education/explainer.py's module
+        # docstring), so this runs synchronously and inline. It has its own
+        # commit and is intentionally not wrapped in a try/except that would
+        # swallow failures: the template path has zero external
+        # dependencies and zero network calls, so a failure here reflects a
+        # real bug worth surfacing, not a transient condition the order
+        # response should paper over.
+        provider = get_llm_provider(get_settings())
+        await generate_explanation_for_trade(db, trade_row, provider)
 
     return ManualOrderResult(order=order, fill=fill_row, position=position_row, trade=trade_row)

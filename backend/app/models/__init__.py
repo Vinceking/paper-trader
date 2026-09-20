@@ -1,5 +1,6 @@
 from app.models.account import PaperAccount, User
 from app.models.base import Base
+from app.models.explanations import ExplanationRecord
 from app.models.gate_reports import GateReportRecord
 from app.models.market import Bar, GapEvent, IngestState
 from app.models.orders import Fill, Order
@@ -24,4 +25,5 @@ __all__ = [
     "StrategyRecord",
     "SignalRecord",
     "GateReportRecord",
+    "ExplanationRecord",
 ]

@@ -12,8 +12,9 @@ from fastapi import APIRouter, Query
 from sqlalchemy import select
 
 from app.deps import CurrentUserAccount, DbSession
+from app.models.explanations import ExplanationRecord
 from app.models.positions import Position, Trade
-from app.schemas.account import AccountOut, PositionOut, TradeOut
+from app.schemas.account import AccountOut, ExplanationOut, PositionOut, TradeOut
 
 router = APIRouter(prefix="/account", tags=["account"])
 
@@ -55,14 +56,18 @@ async def get_trades(
     db: DbSession,
     limit: int = Query(default=50, ge=1, le=200),
 ) -> list[TradeOut]:
+    # Outer join, not a second round trip -- same pattern as GET /signals'
+    # join in routes_signals.py. Outer (not inner) because a trade that
+    # predates Phase 5 has no ExplanationRecord at all.
     rows = (
         await db.execute(
-            select(Trade)
+            select(Trade, ExplanationRecord)
+            .outerjoin(ExplanationRecord, ExplanationRecord.trade_id == Trade.id)
             .where(Trade.account_id == account.id)
             .order_by(Trade.closed_at.desc())
             .limit(limit)
         )
-    ).scalars().all()
+    ).all()
     return [
         TradeOut(
             id=t.id, symbol=t.symbol, side=t.side, qty=t.qty,
@@ -70,6 +75,14 @@ async def get_trades(
             opened_at=t.opened_at, closed_at=t.closed_at,
             gross_pnl=t.gross_pnl, total_friction=t.total_friction,
             net_pnl=t.net_pnl, r_multiple=t.r_multiple, exit_reason=t.exit_reason,
+            explanation=(
+                ExplanationOut(
+                    entry_rationale=e.entry_rationale, exit_rationale=e.exit_rationale,
+                    what_went_right=e.what_went_right, what_went_wrong=e.what_went_wrong,
+                    tip_id=e.tip_id, tip_body=e.tip_body, source=e.source,
+                )
+                if e is not None else None
+            ),
         )
-        for t in rows
+        for t, e in rows
     ]

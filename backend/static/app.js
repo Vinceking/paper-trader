@@ -292,9 +292,29 @@
         <div class="list-item-row"><span>R-multiple</span><span>${t.r_multiple != null ? t.r_multiple.toFixed(2) + "R" : "—"}</span></div>
         <div class="list-item-row"><span>Exit reason</span><span>${escapeHtml(t.exit_reason || "—")}</span></div>
         <div class="list-item-row"><span>Closed</span><span>${fmtDate(t.closed_at)}</span></div>
+        ${renderExplanationHtml(t.explanation)}
       `;
       list.appendChild(div);
     });
+  }
+
+  // Phase 5 — education layer (BUILD_SPEC §11). `explanation` is null for a
+  // trade that predates Phase 5; every trade closed from tonight on has one
+  // (LLM-generated when a key is configured, template-generated otherwise —
+  // see backend/app/education/explainer.py). Style matches this stopgap
+  // frontend's existing plain-CSS language (.list-item-row / .result-box),
+  // not a new visual system, per the Phase 5 task brief.
+  function renderExplanationHtml(explanation) {
+    if (!explanation) return "";
+    return `
+      <div class="explanation-box">
+        <p class="explanation-line"><strong>Why in:</strong> ${escapeHtml(explanation.entry_rationale)}</p>
+        <p class="explanation-line"><strong>Why out:</strong> ${escapeHtml(explanation.exit_rationale)}</p>
+        <p class="explanation-line"><strong>What went right:</strong> ${escapeHtml(explanation.what_went_right)}</p>
+        <p class="explanation-line"><strong>What went wrong:</strong> ${escapeHtml(explanation.what_went_wrong)}</p>
+        ${explanation.tip_body ? `<p class="tip-line"><strong>Tip:</strong> ${escapeHtml(explanation.tip_body)}</p>` : ""}
+      </div>
+    `;
   }
 
   function renderSignals(signals) {

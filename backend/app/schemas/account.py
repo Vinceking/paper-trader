@@ -29,6 +29,19 @@ class PositionOut(BaseModel):
     status: str
 
 
+class ExplanationOut(BaseModel):
+    """The Phase 5 education-layer output for one trade. BUILD_SPEC §11.2's
+    four sections plus the §11.3 tip that was selected for it."""
+
+    entry_rationale: str
+    exit_rationale: str
+    what_went_right: str
+    what_went_wrong: str
+    tip_id: str | None
+    tip_body: str | None
+    source: str  # 'llm' | 'template'
+
+
 class TradeOut(BaseModel):
     id: UUID
     symbol: str
@@ -43,3 +56,7 @@ class TradeOut(BaseModel):
     net_pnl: Decimal
     r_multiple: Decimal | None
     exit_reason: str
+    # None for a trade that predates Phase 5, or (in principle) one whose
+    # explanation generation hasn't happened yet -- see routes_account.py's
+    # outer join.
+    explanation: ExplanationOut | None = None

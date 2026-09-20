@@ -32,6 +32,13 @@ dependencies = [
     # instead of truncating) — pin to a version passlib actually supports.
     "bcrypt>=3.2,<4.1",
     "structlog>=24.4",
+    # Phase 5 education layer (BUILD_SPEC §11.2, ADDENDUM_LIVE_APPROVAL §7):
+    # xAI's Grok is OpenAI-SDK compatible, so this is the only client needed
+    # for the optional LLM explanation path. Lightweight (unlike vectorbt/
+    # backtrader) -- kept in core deps, imported lazily inside
+    # app/education/llm.py's GrokProvider so building a provider object
+    # doesn't force the import for requests that never use it.
+    "openai>=1.50",
 ]
 
 [project.optional-dependencies]
