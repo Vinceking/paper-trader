@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import structlog
@@ -28,9 +28,9 @@ _QUEUE_MAX = 10_000
 
 def _as_utc(ts) -> datetime:
     if isinstance(ts, datetime):
-        return ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
+        return ts if ts.tzinfo else ts.replace(tzinfo=UTC)
     # alpaca-py may hand back nanosecond ints depending on version
-    return datetime.fromtimestamp(int(ts) / 1e9, tz=timezone.utc)
+    return datetime.fromtimestamp(int(ts) / 1e9, tz=UTC)
 
 
 def _dec(v) -> Decimal:
@@ -67,9 +67,16 @@ class AlpacaSource:
                 log.warning("alpaca.queue_full", dropped=self._dropped)
 
     async def stream(self, symbols: list[str]) -> AsyncIterator[Message]:
+        from alpaca.data.enums import DataFeed
         from alpaca.data.live import StockDataStream
 
-        stream = StockDataStream(self.api_key, self.api_secret, feed=self.feed)
+        # StockDataStream's `feed` param is typed as the DataFeed enum, not a
+        # plain string -- it calls `.value` on it internally when building
+        # the websocket URL. `self.feed` comes from Settings.alpaca_data_feed
+        # as a plain "iex"/"sip" string (matching the historical-data client's
+        # own convention elsewhere in this codebase), so convert it here
+        # rather than changing that convention everywhere else.
+        stream = StockDataStream(self.api_key, self.api_secret, feed=DataFeed(self.feed))
 
         async def on_trade(t):
             self._put(TradeMsg(t.symbol, _as_utc(t.timestamp), _dec(t.price), int(t.size)))
